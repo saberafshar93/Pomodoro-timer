@@ -226,9 +226,7 @@
 
         function clearLogs() {
             logTable.innerHTML = '';
-            for (let key in logCounts) {
-                logCounts[key] = 0;
-            }
+            localStorage.removeItem('logHistory'); // حذف لاگ‌ها از LocalStorage
         }
 
         function logTimerEvent() {
@@ -250,7 +248,28 @@
                 <td>${logCounts[minutesDuration]}</td>
             `;
             logTable.prepend(row); // اضافه کردن لاگ جدید به ابتدای جدول
+
+            // ذخیره لاگ‌ها در LocalStorage
+            const logHistory = JSON.parse(localStorage.getItem('logHistory')) || [];
+            logHistory.unshift({ dateStr, timeStr, minutesDuration, count: logCounts[minutesDuration] });
+            localStorage.setItem('logHistory', JSON.stringify(logHistory));
         }
+
+        function loadLogs() {
+            const logHistory = JSON.parse(localStorage.getItem('logHistory')) || [];
+            logHistory.forEach(log => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${log.dateStr} ${log.timeStr}</td>
+                    <td>${log.minutesDuration} دقیقه</td>
+                    <td>${log.count}</td>
+                `;
+                logTable.appendChild(row);
+            });
+        }
+
+        // بارگذاری لاگ‌ها هنگام بارگذاری صفحه
+        loadLogs();
 
         // رویداد شروع / توقف تایمر هنگام کلیک روی دایره
         timerElement.addEventListener('click', () => {
