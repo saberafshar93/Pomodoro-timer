@@ -249,7 +249,7 @@
                 <td>${minutesDuration} دقیقه</td>
                 <td>${logCounts[minutesDuration]}</td>
             `;
-            logTable.appendChild(row);
+            logTable.prepend(row); // اضافه کردن لاگ جدید به ابتدای جدول
         }
 
         // رویداد شروع / توقف تایمر هنگام کلیک روی دایره
