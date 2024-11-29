@@ -1,0 +1,271 @@
+﻿<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro-timer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        .header {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 10px;
+        }
+        .header div {
+            margin: 5px 0;
+            font-size: 1.5rem;
+        }
+        #persianDate {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        #day {
+            color: #ff9800;
+            font-weight: bold;
+        }
+        #gregorianDate {
+            color: #2196f3;
+            font-weight: bold;
+        }
+        .settings-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+        .settings-panel {
+            display: none;
+            position: fixed;
+            top: 50px;
+            left: 10px;
+            background-color: white;
+            border: 2px solid #2196f3;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .settings-panel label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        .settings-panel input[type="number"] {
+            width: 100px;
+            font-size: 1rem;
+            padding: 5px;
+        }
+        .timer {
+            width: 150px;
+            height: 150px;
+            border: 10px solid gray;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            margin: 20px auto;
+            transition: border-color 0.3s ease;
+            cursor: pointer; /* به دایره حالت clickable می‌دهیم */
+        }
+        .timer.green {
+            border-color: green;
+            color: green;
+        }
+        .timer.red {
+            border-color: red;
+            color: red;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 1rem;
+        }
+        table {
+            margin: 20px auto;
+            border-collapse: collapse;
+            width: 80%;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <button class="settings-btn" onclick="toggleSettings()">تنظیمات</button>
+    <div class="settings-panel" id="settingsPanel">
+        <label>
+            تنظیم مدت زمان تایمر (دقیقه):
+            <input type="number" id="timerDurationInput" value="1" min="1" step="1">
+        </label>
+        <button onclick="applySettings()">اعمال</button>
+    </div>
+
+    <div class="header">
+        <div id="persianDate"></div>
+        <div id="day"></div>
+        <div id="gregorianDate"></div>
+    </div>
+
+    <div class="timer" id="timer">00:00</div>
+    <button id="resetBtn">ریست</button>
+    <button id="clearLogsBtn">پاک کردن اطلاعات لاگ</button>
+
+    <table>
+        <thead>
+            <tr>
+                <th>تاریخ و ساعت دقیق</th>
+                <th>مدت زمان تایمر (دقیقه)</th>
+                <th>تعداد دفعات (۲۴ ساعت)</th>
+            </tr>
+        </thead>
+        <tbody id="logTable"></tbody>
+    </table>
+
+    <script>
+        // تنظیمات
+        let timerDuration = 60; // مدت زمان پیش‌فرض تایمر (ثانیه)
+        const settingsPanel = document.getElementById('settingsPanel');
+        const timerDurationInput = document.getElementById('timerDurationInput');
+        const logCounts = {}; // شمارش تعداد دفعات برای هر تایمر
+
+        function toggleSettings() {
+            settingsPanel.style.display = settingsPanel.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function applySettings() {
+            const minutes = parseInt(timerDurationInput.value);
+            timerDuration = minutes * 60; // تبدیل دقیقه به ثانیه
+            resetTimer();
+            toggleSettings();
+        }
+
+        // نمایش تاریخ و زمان
+        function updateDateTime() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const persianFormatter = new Intl.DateTimeFormat('fa-IR', options);
+
+            const timeString = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('persianDate').textContent = `تاریخ و ساعت شمسی: ${persianFormatter.format(now)} - ${timeString}`;
+            document.getElementById('day').textContent = `روز: ${now.toLocaleDateString('fa-IR', { weekday: 'long' })}`;
+            document.getElementById('gregorianDate').textContent = `تاریخ میلادی: ${now.toLocaleString('en-US')}`;
+        }
+        setInterval(updateDateTime, 1000);
+
+        // تایمر معکوس
+        let timerInterval;
+        let timerRunning = false;
+        let timeLeft = timerDuration;
+        const timerElement = document.getElementById('timer');
+        const resetBtn = document.getElementById('resetBtn');
+        const clearLogsBtn = document.getElementById('clearLogsBtn');
+        const logTable = document.getElementById('logTable');
+
+        // صدای بیپ
+        const beepSound = new Audio('https://raw.githubusercontent.com/saberafshar93/Pomodoro-timer/main/mouse_click_sfx.mp3'); // لینک مستقیم فایل صوتی
+
+        function playBeep() {
+            beepSound.play();
+            setTimeout(() => beepSound.play(), 500); // دوباره پخش در 500 میلی‌ثانیه بعد
+            setTimeout(() => beepSound.play(), 1000); // دوباره پخش در 1000 میلی‌ثانیه بعد
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const seconds = (timeLeft % 60).toString().padStart(2, '0');
+            timerElement.textContent = `${minutes}:${seconds}`;
+        }
+
+        function startTimer() {
+            if (timerRunning) return;
+            timerRunning = true;
+            timeLeft = timeLeft === 0 ? timerDuration : timeLeft; // در صورت صفر شدن، بازنشانی زمان
+            timerElement.classList.remove('red');
+            timerElement.classList.add('green');
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timerRunning = false;
+                    timerElement.classList.remove('green');
+                    timerElement.classList.add('red');
+                    playBeep(); // صدای بیپ سه مرتبه پخش می‌شود
+                    logTimerEvent();
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            timerRunning = false;
+            timerElement.classList.remove('green');
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerRunning = false;
+            timeLeft = timerDuration;
+            updateTimerDisplay();
+            timerElement.classList.remove('green', 'red');
+        }
+
+        function clearLogs() {
+            logTable.innerHTML = '';
+            for (let key in logCounts) {
+                logCounts[key] = 0;
+            }
+        }
+
+        function logTimerEvent() {
+            const now = new Date();
+            const persianFormatter = new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: 'numeric', day: 'numeric' });
+            const dateStr = persianFormatter.format(now);
+            const timeStr = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const minutesDuration = timerDuration / 60;
+
+            if (!logCounts[minutesDuration]) {
+                logCounts[minutesDuration] = 0;
+            }
+            logCounts[minutesDuration]++;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${dateStr} ${timeStr}</td>
+                <td>${minutesDuration} دقیقه</td>
+                <td>${logCounts[minutesDuration]}</td>
+            `;
+            logTable.appendChild(row);
+        }
+
+        // رویداد شروع / توقف تایمر هنگام کلیک روی دایره
+        timerElement.addEventListener('click', () => {
+            if (timerRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        });
+
+        resetBtn.addEventListener('click', resetTimer);
+        clearLogsBtn.addEventListener('click', clearLogs);
+
+        updateDateTime();
+        updateTimerDisplay();
+    </script>
+</body>
+</html>
