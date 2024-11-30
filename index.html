@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pomodoro-timer</title>
+    <title>تایمر معکوس و گزارش</title>
     <style>
-        /* استایل‌ها بدون تغییر باقی می‌ماند */
         body {
             font-family: Arial, sans-serif;
             text-align: center;
@@ -75,7 +74,7 @@
             font-size: 2rem;
             margin: 20px auto;
             transition: border-color 0.3s ease;
-            cursor: pointer;
+            cursor: pointer; /* به دایره حالت clickable می‌دهیم */
         }
         .timer.green {
             border-color: green;
@@ -106,8 +105,6 @@
     </style>
 </head>
 <body>
-    <!-- باقی ساختار HTML اصلی شما بدون تغییر باقی می‌ماند -->
-
     <button class="settings-btn" onclick="toggleSettings()">تنظیمات</button>
     <div class="settings-panel" id="settingsPanel">
         <label>
@@ -139,85 +136,152 @@
     </table>
 
     <script>
-        // کد اصلی شما بدون تغییر
+        // تنظیمات
+        let timerDuration = 60; // مدت زمان پیش‌فرض تایمر (ثانیه)
+        const settingsPanel = document.getElementById('settingsPanel');
+        const timerDurationInput = document.getElementById('timerDurationInput');
+        const logCounts = {}; // شمارش تعداد دفعات برای هر تایمر
 
-        // افزودن قابلیت‌های جدید:
-        function saveTimerState() {
-            const state = {
-                timeLeft,
-                timerDuration,
-                timerRunning,
-                lastUpdated: Date.now()
-            };
-            localStorage.setItem('timerState', JSON.stringify(state));
+        function toggleSettings() {
+            settingsPanel.style.display = settingsPanel.style.display === 'block' ? 'none' : 'block';
         }
 
-        function loadTimerState() {
-            const state = JSON.parse(localStorage.getItem('timerState'));
-            if (state) {
-                const elapsedTime = Math.floor((Date.now() - state.lastUpdated) / 1000); // محاسبه زمان سپری‌شده
-                timeLeft = Math.max(state.timeLeft - elapsedTime, 0);
-                timerDuration = state.timerDuration;
-                timerRunning = state.timerRunning;
-
-                if (timerRunning && timeLeft > 0) {
-                    startTimer(); // ادامه تایمر در صورت اجرا
-                } else if (timeLeft === 0 && timerRunning) {
-                    timerRunning = false;
-                    playBeep(); // هشدار پایان تایمر
-                    logTimerEvent();
-                }
-            }
+        function applySettings() {
+            const minutes = parseInt(timerDurationInput.value);
+            timerDuration = minutes * 60; // تبدیل دقیقه به ثانیه
+            resetTimer();
+            toggleSettings();
         }
 
-        // بازنویسی تابع شروع برای ذخیره وضعیت
+        // نمایش تاریخ و زمان
+        function updateDateTime() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const persianFormatter = new Intl.DateTimeFormat('fa-IR', options);
+
+            const timeString = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('persianDate').textContent = `تاریخ و ساعت شمسی: ${persianFormatter.format(now)} - ${timeString}`;
+            document.getElementById('day').textContent = `روز: ${now.toLocaleDateString('fa-IR', { weekday: 'long' })}`;
+            document.getElementById('gregorianDate').textContent = `تاریخ میلادی: ${now.toLocaleString('en-US')}`;
+        }
+        setInterval(updateDateTime, 1000);
+
+        // تایمر معکوس
+        let timerInterval;
+        let timerRunning = false;
+        let timeLeft = timerDuration;
+        const timerElement = document.getElementById('timer');
+        const resetBtn = document.getElementById('resetBtn');
+        const clearLogsBtn = document.getElementById('clearLogsBtn');
+        const logTable = document.getElementById('logTable');
+
+        // صدای بیپ
+        const beepSound = new Audio('https://raw.githubusercontent.com/saberafshar93/Pomodoro-timer/main/mouse_click_sfx.mp3'); // لینک مستقیم فایل صوتی
+
+        function playBeep() {
+            beepSound.play();
+            setTimeout(() => beepSound.play(), 500); // دوباره پخش در 500 میلی‌ثانیه بعد
+            setTimeout(() => beepSound.play(), 1000); // دوباره پخش در 1000 میلی‌ثانیه بعد
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const seconds = (timeLeft % 60).toString().padStart(2, '0');
+            timerElement.textContent = `${minutes}:${seconds}`;
+        }
+
         function startTimer() {
             if (timerRunning) return;
             timerRunning = true;
-            timeLeft = timeLeft === 0 ? timerDuration : timeLeft;
+            timeLeft = timeLeft === 0 ? timerDuration : timeLeft; // در صورت صفر شدن، بازنشانی زمان
             timerElement.classList.remove('red');
             timerElement.classList.add('green');
-            saveTimerState(); // ذخیره وضعیت
-
             timerInterval = setInterval(() => {
                 timeLeft--;
                 updateTimerDisplay();
-                saveTimerState(); // ذخیره وضعیت در هر ثانیه
-
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
                     timerRunning = false;
                     timerElement.classList.remove('green');
                     timerElement.classList.add('red');
-                    playBeep();
+                    playBeep(); // صدای بیپ سه مرتبه پخش می‌شود
                     logTimerEvent();
                 }
             }, 1000);
         }
 
-        // بازنویسی تابع توقف برای ذخیره وضعیت
         function pauseTimer() {
             clearInterval(timerInterval);
             timerRunning = false;
             timerElement.classList.remove('green');
-            saveTimerState(); // ذخیره وضعیت هنگام توقف
         }
 
-        // بازنویسی تابع بازنشانی تایمر
         function resetTimer() {
             clearInterval(timerInterval);
             timerRunning = false;
             timeLeft = timerDuration;
             updateTimerDisplay();
             timerElement.classList.remove('green', 'red');
-            localStorage.removeItem('timerState'); // حذف وضعیت ذخیره‌شده
         }
 
-        // بارگذاری وضعیت هنگام بارگذاری صفحه
-        window.addEventListener('DOMContentLoaded', () => {
-            loadTimerState();
-            updateTimerDisplay();
+        function clearLogs() {
+            logTable.innerHTML = '';
+            localStorage.removeItem('logHistory'); // حذف لاگ‌ها از LocalStorage
+        }
+
+        function logTimerEvent() {
+            const now = new Date();
+            const persianFormatter = new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: 'numeric', day: 'numeric' });
+            const dateStr = persianFormatter.format(now);
+            const timeStr = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const minutesDuration = timerDuration / 60;
+
+            if (!logCounts[minutesDuration]) {
+                logCounts[minutesDuration] = 0;
+            }
+            logCounts[minutesDuration]++;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${dateStr} ${timeStr}</td>
+                <td>${minutesDuration} دقیقه</td>
+                <td>${logCounts[minutesDuration]}</td>
+            `;
+            logTable.prepend(row); // اضافه کردن لاگ جدید به ابتدای جدول
+
+            // ذخیره لاگ‌ها در LocalStorage
+            const logHistory = JSON.parse(localStorage.getItem('logHistory')) || [];
+            logHistory.unshift({ dateStr, timeStr, minutesDuration, count: logCounts[minutesDuration] });
+            localStorage.setItem('logHistory', JSON.stringify(logHistory));
+        }
+
+        function loadLogs() {
+            const logHistory = JSON.parse(localStorage.getItem('logHistory')) || [];
+            logHistory.forEach(log => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${log.dateStr} ${log.timeStr}</td>
+                    <td>${log.minutesDuration} دقیقه</td>
+                    <td>${log.count}</td>
+                `;
+                logTable.appendChild(row);
+            });
+        }
+
+        // بارگذاری لاگ‌ها هنگام بارگذاری صفحه
+        loadLogs();
+
+        // رویداد شروع / توقف تایمر هنگام کلیک روی دایره
+        timerElement.addEventListener('click', () => {
+            if (timerRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
         });
+
+        resetBtn.addEventListener('click', resetTimer);
+        clearLogsBtn.addEventListener('click', clearLogs);
 
         updateDateTime();
         updateTimerDisplay();
