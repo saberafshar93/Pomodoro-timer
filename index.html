@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -74,7 +74,7 @@
             font-size: 2rem;
             margin: 20px auto;
             transition: border-color 0.3s ease;
-            cursor: pointer; /* به دایره حالت clickable می‌دهیم */
+            cursor: pointer;
         }
         .timer.green {
             border-color: green;
@@ -136,11 +136,40 @@
     </table>
 
     <script>
-        // تنظیمات
         let timerDuration = 60; // مدت زمان پیش‌فرض تایمر (ثانیه)
         const settingsPanel = document.getElementById('settingsPanel');
         const timerDurationInput = document.getElementById('timerDurationInput');
         const logCounts = {}; // شمارش تعداد دفعات برای هر تایمر
+
+        // ذخیره وضعیت تایمر در localStorage
+        function saveTimerState() {
+            const state = {
+                timeLeft,
+                timerDuration,
+                timerRunning,
+                lastUpdated: Date.now()
+            };
+            localStorage.setItem('timerState', JSON.stringify(state));
+        }
+
+        // بارگذاری وضعیت تایمر از localStorage
+        function loadTimerState() {
+            const state = JSON.parse(localStorage.getItem('timerState'));
+            if (state) {
+                const elapsedTime = Math.floor((Date.now() - state.lastUpdated) / 1000); // محاسبه زمان سپری‌شده
+                timeLeft = Math.max(state.timeLeft - elapsedTime, 0);
+                timerDuration = state.timerDuration;
+                timerRunning = state.timerRunning;
+
+                if (timerRunning && timeLeft > 0) {
+                    startTimer(); // ادامه تایمر در صورت اجرا
+                } else if (timeLeft === 0 && timerRunning) {
+                    timerRunning = false;
+                    playBeep(); // هشدار پایان تایمر
+                    logTimerEvent();
+                }
+            }
+        }
 
         function toggleSettings() {
             settingsPanel.style.display = settingsPanel.style.display === 'block' ? 'none' : 'block';
@@ -151,9 +180,9 @@
             timerDuration = minutes * 60; // تبدیل دقیقه به ثانیه
             resetTimer();
             toggleSettings();
+            saveTimerState(); // ذخیره وضعیت پس از تغییر تنظیمات
         }
 
-        // نمایش تاریخ و زمان
         function updateDateTime() {
             const now = new Date();
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -176,7 +205,7 @@
         const logTable = document.getElementById('logTable');
 
         // صدای بیپ
-        const beepSound = new Audio('https://raw.githubusercontent.com/saberafshar93/Pomodoro-timer/main/mouse_click_sfx.mp3'); // لینک مستقیم فایل صوتی
+        const beepSound = new Audio('https://raw.githubusercontent.com/saberafshar93/Pomodoro-timer/main/mouse_click_sfx.mp3');
 
         function playBeep() {
             beepSound.play();
@@ -196,15 +225,19 @@
             timeLeft = timeLeft === 0 ? timerDuration : timeLeft; // در صورت صفر شدن، بازنشانی زمان
             timerElement.classList.remove('red');
             timerElement.classList.add('green');
+            saveTimerState(); // ذخیره وضعیت
+
             timerInterval = setInterval(() => {
                 timeLeft--;
                 updateTimerDisplay();
+                saveTimerState(); // ذخیره وضعیت در هر ثانیه
+
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
                     timerRunning = false;
                     timerElement.classList.remove('green');
                     timerElement.classList.add('red');
-                    playBeep(); // صدای بیپ سه مرتبه پخش می‌شود
+                    playBeep();
                     logTimerEvent();
                 }
             }, 1000);
@@ -214,6 +247,7 @@
             clearInterval(timerInterval);
             timerRunning = false;
             timerElement.classList.remove('green');
+            saveTimerState(); // ذخیره وضعیت هنگام توقف
         }
 
         function resetTimer() {
@@ -222,66 +256,32 @@
             timeLeft = timerDuration;
             updateTimerDisplay();
             timerElement.classList.remove('green', 'red');
-        }
-
-        function clearLogs() {
-            logTable.innerHTML = '';
-            localStorage.removeItem('logHistory'); // حذف لاگ‌ها از LocalStorage
+            localStorage.removeItem('timerState'); // حذف وضعیت ذخیره‌شده
         }
 
         function logTimerEvent() {
             const now = new Date();
-            const persianFormatter = new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: 'numeric', day: 'numeric' });
-            const dateStr = persianFormatter.format(now);
-            const timeStr = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const minutesDuration = timerDuration / 60;
+            const logRow = document.createElement('tr');
+            const logTime = now.toLocaleString('fa-IR');
+            const logDuration = timerDuration / 60; // نمایش مدت تایمر بر اساس دقیقه
+            logCounts[logDuration] = (logCounts[logDuration] || 0) + 1;
 
-            if (!logCounts[minutesDuration]) {
-                logCounts[minutesDuration] = 0;
-            }
-            logCounts[minutesDuration]++;
-
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${dateStr} ${timeStr}</td>
-                <td>${minutesDuration} دقیقه</td>
-                <td>${logCounts[minutesDuration]}</td>
+            logRow.innerHTML = `
+                <td>${logTime}</td>
+                <td>${logDuration} دقیقه</td>
+                <td>${logCounts[logDuration]}</td>
             `;
-            logTable.prepend(row); // اضافه کردن لاگ جدید به ابتدای جدول
-
-            // ذخیره لاگ‌ها در LocalStorage
-            const logHistory = JSON.parse(localStorage.getItem('logHistory')) || [];
-            logHistory.unshift({ dateStr, timeStr, minutesDuration, count: logCounts[minutesDuration] });
-            localStorage.setItem('logHistory', JSON.stringify(logHistory));
+            logTable.appendChild(logRow);
         }
-
-        function loadLogs() {
-            const logHistory = JSON.parse(localStorage.getItem('logHistory')) || [];
-            logHistory.forEach(log => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${log.dateStr} ${log.timeStr}</td>
-                    <td>${log.minutesDuration} دقیقه</td>
-                    <td>${log.count}</td>
-                `;
-                logTable.appendChild(row);
-            });
-        }
-
-        // بارگذاری لاگ‌ها هنگام بارگذاری صفحه
-        loadLogs();
-
-        // رویداد شروع / توقف تایمر هنگام کلیک روی دایره
-        timerElement.addEventListener('click', () => {
-            if (timerRunning) {
-                pauseTimer();
-            } else {
-                startTimer();
-            }
-        });
 
         resetBtn.addEventListener('click', resetTimer);
-        clearLogsBtn.addEventListener('click', clearLogs);
+        clearLogsBtn.addEventListener('click', () => { logTable.innerHTML = ''; });
+
+        // بارگذاری وضعیت هنگام بارگذاری صفحه
+        window.addEventListener('DOMContentLoaded', () => {
+            loadTimerState();
+            updateTimerDisplay();
+        });
 
         updateDateTime();
         updateTimerDisplay();
